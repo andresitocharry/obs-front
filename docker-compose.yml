@@ -19,7 +19,7 @@ services:
         limits:
           cpus: '2.0'
           memory: 1024M
-    restart: always
+    restart: "no"
 
 volumes:
   frontend_node_modules:

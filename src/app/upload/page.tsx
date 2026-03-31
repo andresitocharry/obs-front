@@ -57,8 +57,12 @@ export default function ValidationTool() {
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/api/v1/upload/`, {
         method: "POST",
+        headers: token ? {
+          "Authorization": `Bearer ${token}`
+        } : {},
         body: formData,
       });
 
@@ -78,7 +82,12 @@ export default function ValidationTool() {
     const interval = setInterval(async () => {
       try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const response = await fetch(`${API_URL}/api/v1/upload/${jobId}/status`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/api/v1/upload/${jobId}/status`, {
+        headers: token ? {
+          "Authorization": `Bearer ${token}`
+        } : {}
+      });
         const data = await response.json();
 
         setJobStatus(data);

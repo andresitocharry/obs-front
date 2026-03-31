@@ -15,7 +15,7 @@ FROM base AS deps
 COPY package.json package-lock.json ./
 
 # Install ALL dependencies
-RUN npm ci --prefer-offline --no-audit --progress=false
+RUN npm install --prefer-offline --no-audit --progress=false
 
 ########## Builder stage ##########
 FROM base AS builder

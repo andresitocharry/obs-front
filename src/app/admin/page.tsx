@@ -1,9 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Database, Plus, ShieldCheck, Loader2, ArrowLeft, Trash2, Edit3, X, Save, LogOut, Calculator, AlertTriangle, ChevronRight } from "lucide-react";
+import { Database, Plus, ShieldCheck, Loader2, ArrowLeft, Trash2, Edit3, X, Save, LogOut, Calculator, AlertTriangle, ChevronRight, Users, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
+interface User {
+    id: string;
+    username: string;
+    role: string;
+    created_at: string;
+}
 
 interface SchemaRule {
     id: number;
@@ -24,19 +31,27 @@ interface Indicator {
 }
 
 export default function AdminSchemaPage() {
-    const [activeTab, setActiveTab] = useState<"fields" | "indicators">("fields");
+    const [activeTab, setActiveTab] = useState<"fields" | "indicators" | "users">("fields");
     const [rules, setRules] = useState<SchemaRule[]>([]);
     const [indicators, setIndicators] = useState<Indicator[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
+    const [userModalOpen, setUserModalOpen] = useState(false);
     const [editingRule, setEditingRule] = useState<SchemaRule | null>(null);
     const [dependencyError, setDependencyError] = useState<{message: string, indicators: string[]} | null>(null);
+    const [userError, setUserError] = useState("");
     const [formData, setFormData] = useState<Partial<SchemaRule>>({
         column_name: "",
         data_type: "str",
         is_required: true,
         min_value: undefined,
         max_value: undefined
+    });
+    const [newUserForm, setNewUserForm] = useState({
+        username: "",
+        password: "",
+        role: "foundation"
     });
     
     const router = useRouter();
@@ -64,18 +79,54 @@ export default function AdminSchemaPage() {
                 if (!res.ok) throw new Error("Failed to fetch fields");
                 const data = await res.json();
                 setRules(data);
-            } else {
+            } else if (activeTab === "indicators") {
                 const res = await fetch(`${API_URL}/api/v1/admin/indicators/`, {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
                 if (!res.ok) throw new Error("Failed to fetch indicators");
                 const data = await res.json();
                 setIndicators(data);
+            } else if (activeTab === "users") {
+                const res = await fetch(`${API_URL}/api/v1/admin/users`, {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error("Failed to fetch users");
+                const data = await res.json();
+                setUsers(data);
             }
         } catch (error) {
             console.error("Failed to fetch", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleRegisterUser = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setUserError("");
+        const token = localStorage.getItem("token");
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        
+        try {
+            const res = await fetch(`${API_URL}/api/v1/admin/register`, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify(newUserForm)
+            });
+
+            if (res.ok) {
+                setUserModalOpen(false);
+                setNewUserForm({ username: "", password: "", role: "foundation" });
+                fetchData();
+            } else {
+                const data = await res.json();
+                setUserError(data.detail || "Error al crear usuario");
+            }
+        } catch (error) {
+            setUserError("Error de conexión al servidor");
         }
     };
 
@@ -187,6 +238,13 @@ export default function AdminSchemaPage() {
                         <Calculator className="mr-2 h-4 w-4" />
                         Indicadores
                     </button>
+                    <button 
+                        onClick={() => setActiveTab("users")}
+                        className={`px-6 py-2.5 rounded-xl font-bold transition-all flex items-center ${activeTab === "users" ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <Users className="mr-2 h-4 w-4" />
+                        Usuarios
+                    </button>
                 </div>
 
                 {/* Main Content Area */}
@@ -260,7 +318,7 @@ export default function AdminSchemaPage() {
                             </table>
                         </div>
                     </>
-                ) : (
+                ) : activeTab === "indicators" ? (
                     <div className="space-y-6">
                         <div className="flex justify-between items-center">
                             <h2 className="text-xl font-bold text-slate-700">Diccionario de Indicadores</h2>
@@ -297,6 +355,50 @@ export default function AdminSchemaPage() {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-slate-700">Gestión de Usuarios</h2>
+                            <button 
+                                onClick={() => setUserModalOpen(true)}
+                                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center shadow-lg shadow-indigo-100"
+                            >
+                                <UserPlus className="mr-2 h-4 w-4" />
+                                Nuevo Usuario
+                            </button>
+                        </div>
+                        
+                        <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                            <table className="min-w-full divide-y divide-slate-100">
+                                <thead className="bg-slate-50/50">
+                                    <tr>
+                                        <th className="px-8 py-5 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Usuario</th>
+                                        <th className="px-8 py-5 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Rol</th>
+                                        <th className="px-8 py-5 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Fecha Creación</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {loading ? (
+                                        <tr><td colSpan={3} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-indigo-300" /></td></tr>
+                                    ) : users.map(user => (
+                                        <tr key={user.id} className="hover:bg-slate-50/80 transition-colors group">
+                                            <td className="px-8 py-6">
+                                                <div className="font-bold text-slate-900 cursor-default">{user.username}</div>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <span className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider ${user.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                    {user.role}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-6 text-sm text-slate-500 font-mono">
+                                                {new Date(user.created_at).toLocaleDateString()}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 )}
@@ -347,6 +449,68 @@ export default function AdminSchemaPage() {
                                     <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-bold">CANCELAR</button>
                                     <button type="submit" className="flex-2 py-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center">
                                         <Save className="mr-2" size={20} /> GUARDAR
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* User Modal */}
+            {userModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-10">
+                            <div className="flex justify-between items-center mb-8">
+                                <h2 className="text-2xl font-black text-slate-900">NUEVO USUARIO</h2>
+                                <button onClick={() => {setUserModalOpen(false); setUserError("");}} className="p-2 hover:bg-slate-50 rounded-full"><X size={24} /></button>
+                            </div>
+
+                            {userError && (
+                                <div className="mb-6 p-4 bg-red-50 text-red-600 text-sm font-bold rounded-xl border border-red-100 flex items-center animate-pulse">
+                                    <AlertTriangle className="mr-2 h-5 w-5" />
+                                    {userError}
+                                </div>
+                            )}
+
+                            <form onSubmit={handleRegisterUser} className="space-y-6">
+                                <div>
+                                    <label className="text-sm font-black text-slate-700 ml-1 uppercase">Usuario / Email</label>
+                                    <input 
+                                        type="text" required value={newUserForm.username}
+                                        placeholder="Ej: nuevo.admin"
+                                        onChange={(e) => setNewUserForm({...newUserForm, username: e.target.value})}
+                                        className="w-full mt-2 px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-sm font-black text-slate-700 ml-1 uppercase">Contraseña</label>
+                                    <input 
+                                        type="password" required value={newUserForm.password} minLength={6}
+                                        placeholder="Min. 6 caracteres"
+                                        onChange={(e) => setNewUserForm({...newUserForm, password: e.target.value})}
+                                        className="w-full mt-2 px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="text-sm font-black text-slate-700 ml-1 uppercase">Rol</label>
+                                    <select 
+                                        value={newUserForm.role}
+                                        onChange={(e) => setNewUserForm({...newUserForm, role: e.target.value})}
+                                        className="w-full mt-2 px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none truncate"
+                                    >
+                                        <option value="foundation">Fundación / Médico (Solo sube archivos)</option>
+                                        <option value="admin">Administrador (Gestiona portal)</option>
+                                    </select>
+                                </div>
+                                
+                                <div className="flex space-x-4 pt-6">
+                                    <button type="button" onClick={() => {setUserModalOpen(false); setUserError("");}} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-bold">CANCELAR</button>
+                                    <button type="submit" className="flex-2 py-4 px-6 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center shrink-0">
+                                        <UserPlus className="mr-2" size={20} /> CREAR
                                     </button>
                                 </div>
                             </form>

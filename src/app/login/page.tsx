@@ -1,73 +1,57 @@
 "use client";
 
-import { useState } from "react";
-import { ShieldCheck, Loader2, ArrowRight, Lock, User } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ShieldCheck, Loader2, ArrowRight, Lock, User, Mail, Globe, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
-
-    // BYPASS HARCODEADO PARA LA PRESENTACIÓN
-    if ((username === "admin" && password === "admin123") || 
-        (username === "foundation" && password === "foundation123")) {
-      
-      const role = username === "admin" ? "admin" : "foundation";
-      localStorage.setItem("token", "dummy_token_for_presentation");
-      localStorage.setItem("role", role);
-      localStorage.setItem("username", username);
-
-      setTimeout(() => {
-        if (role === "admin") {
-          router.push("/admin");
-        } else {
-          router.push("/upload");
-        }
-      }, 500);
-      return;
-    }
+    setIsLoading(true);
 
     try {
-      const formData = new URLSearchParams();
-      formData.append("username", username);
-      formData.append("password", password);
-
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const response = await fetch(`${API_URL}/api/v1/admin/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: formData,
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/admin/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          username: username,
+          password: password,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error("Credenciales inválidas");
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Credenciales incorrectas');
       }
 
       const data = await response.json();
       
-      localStorage.setItem("token", data.access_token);
-      localStorage.setItem("role", data.role);
-      localStorage.setItem("username", username);
+      // Guardar sesión
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('role', data.role);
+      localStorage.setItem('username', username);
 
-      if (data.role === "admin") {
-        router.push("/admin");
+      // Redirigir según el rol
+      if (data.role === 'admin') {
+        router.push('/admin');
       } else {
-        router.push("/upload");
+        router.push('/upload');
       }
-
     } catch (err: any) {
-      setError("Credenciales inválidas (Modo Demo: admin/admin123)");
+      console.error('Error during login:', err.message);
+      setError(err.message || 'Error al iniciar sesión');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -121,29 +105,30 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div className="p-4 bg-red-50 text-red-600 text-sm font-medium rounded-xl border border-red-100 animate-shake">
+              <div className="p-4 bg-red-50 text-red-600 text-sm font-medium rounded-xl border border-red-100 animate-shake flex items-center">
+                <AlertCircle className="w-5 h-5 mr-2" />
                 {error}
               </div>
             )}
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={isLoading}
               className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg hover:bg-indigo-700 transition-all active:scale-[0.98] shadow-lg shadow-indigo-100 flex items-center justify-center disabled:opacity-70"
             >
-              {loading ? (
-                <Loader2 className="animate-spin" />
-              ) : (
+              {isLoading ? (
                 <>
-                  Iniciar Sesión
-                  <ArrowRight className="ml-2 w-5 h-5" />
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Ingresando...
                 </>
+              ) : (
+                'Ingresar'
               )}
             </button>
           </form>
 
           <p className="mt-8 text-center text-sm text-slate-400 font-medium">
-            ¿Olvidaste tu contraseña? <a href="#" className="text-indigo-600 hover:underline">Contacta a soporte</a>
+            ¿Olvidaste tu contraseña? <Link href="/forgot-password" className="text-indigo-600 hover:underline">Recupérala aquí</Link>
           </p>
         </div>
         
