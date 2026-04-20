@@ -13,13 +13,17 @@ interface User {
 }
 
 interface SchemaRule {
-    id: number;
+    id: string; // Puede ser UUID según el nuevo modelo
     column_name: string;
+    column_display_name?: string;
     is_required: boolean;
     data_type: string;
+    basica: boolean;
     min_value?: number;
     max_value?: number;
     missing_value_code?: string;
+    fase_nombre?: string;
+    evento_nombre?: string;
 }
 
 interface Indicator {
@@ -31,7 +35,7 @@ interface Indicator {
 }
 
 export default function AdminSchemaPage() {
-    const [activeTab, setActiveTab] = useState<"fields" | "indicators" | "users">("fields");
+    const [activeTab, setActiveTab] = useState<"fields" | "indicators" | "users" | "visual">("fields");
     const [rules, setRules] = useState<SchemaRule[]>([]);
     const [indicators, setIndicators] = useState<Indicator[]>([]);
     const [users, setUsers] = useState<User[]>([]);
@@ -216,14 +220,53 @@ export default function AdminSchemaPage() {
                     <div>
                         <h1 className="text-4xl font-black tracking-tight text-slate-900 flex items-center uppercase">
                             <ShieldCheck className="mr-3 h-10 w-10 text-indigo-600" />
-                            Gestión Clínica
+                            Gobernanza EFETI
                         </h1>
-                        <p className="mt-2 text-slate-500 font-medium text-lg">Define la calidad y métricas de la Fundación Canguro.</p>
+                        <p className="mt-2 text-slate-500 font-medium text-lg">Administración del Cerebro de Metadatos y Estándares de Calidad.</p>
+                    </div>
+                </div>
+
+                {/* Governance Dashboard Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
+                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Variables Totales</p>
+                        <div className="flex items-end justify-between">
+                            <p className="text-3xl font-black text-indigo-600 leading-none">{rules.length}</p>
+                            <Database className="text-slate-200" size={24} />
+                        </div>
+                    </div>
+                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Variables Básicas</p>
+                        <div className="flex items-end justify-between">
+                            <p className="text-3xl font-black text-emerald-500 leading-none">{rules.filter(r => r.basica).length}</p>
+                            <ShieldCheck className="text-slate-200" size={24} />
+                        </div>
+                    </div>
+                    <div className="bg-indigo-600 p-6 rounded-3xl shadow-lg shadow-indigo-100">
+                        <p className="text-xs font-black text-indigo-200 uppercase tracking-widest mb-2">Fuente de Verdad</p>
+                        <div className="flex items-end justify-between">
+                            <p className="text-xl font-bold text-white leading-tight">Protocolo<br/>Canguro</p>
+                            <ShieldCheck className="text-indigo-400" size={24} />
+                        </div>
+                    </div>
+                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Estado Ingesta</p>
+                        <div className="flex items-end justify-between">
+                            <p className="text-xl font-bold text-slate-700 leading-tight">Activo /<br/>Validado</p>
+                            <Database className="text-slate-200" size={24} />
+                        </div>
                     </div>
                 </div>
 
                 {/* Tabs */}
                 <div className="flex space-x-2 mb-8 p-1.5 bg-slate-200/50 rounded-2xl w-fit">
+                    <button 
+                        onClick={() => setActiveTab("visual")}
+                        className={`px-6 py-2.5 rounded-xl font-bold transition-all flex items-center ${activeTab === "visual" ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        Mapa Maestro
+                    </button>
                     <button 
                         onClick={() => setActiveTab("fields")}
                         className={`px-6 py-2.5 rounded-xl font-bold transition-all flex items-center ${activeTab === "fields" ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
@@ -251,14 +294,10 @@ export default function AdminSchemaPage() {
                 {activeTab === "fields" ? (
                     <>
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-slate-700">Campos Obligatorios</h2>
-                            <button 
-                                onClick={openNew}
-                                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center shadow-lg shadow-indigo-100"
-                            >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Nuevo Campo
-                            </button>
+                            <h2 className="text-xl font-bold text-slate-700">Diccionario de Gobernanza (EFETI)</h2>
+                            <div className="flex space-x-2">
+                                <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase rounded-lg border border-indigo-100">Solo Lectura (Maestro)</span>
+                            </div>
                         </div>
 
                         {dependencyError && (
@@ -285,31 +324,39 @@ export default function AdminSchemaPage() {
                             <table className="min-w-full divide-y divide-slate-100">
                                 <thead className="bg-slate-50/50">
                                     <tr>
-                                        <th className="px-8 py-5 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Columna</th>
-                                        <th className="px-8 py-5 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Tipo</th>
-                                        <th className="px-8 py-5 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Rango</th>
-                                        <th className="px-8 py-5 text-right text-xs font-black text-slate-400 uppercase tracking-widest">Acciones</th>
+                                        <th className="px-8 py-5 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Gobernanza / Campo</th>
+                                        <th className="px-8 py-5 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Contexto Clínico (Fase {">"} Evento)</th>
+                                        <th className="px-8 py-5 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Validación EFETI</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
                                     {loading ? (
-                                        <tr><td colSpan={4} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-indigo-300" /></td></tr>
+                                        <tr><td colSpan={3} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-indigo-300" /></td></tr>
                                     ) : rules.map(rule => (
                                         <tr key={rule.id} className="hover:bg-slate-50/80 transition-colors group">
                                             <td className="px-8 py-6">
-                                                <div className="font-mono text-sm font-bold text-slate-900">{rule.column_name}</div>
-                                                {rule.is_required && <span className="text-[10px] font-black text-amber-500 uppercase">Obligatorio</span>}
+                                                <div className="flex items-center space-x-2">
+                                                    <div className="font-mono text-xs font-black text-slate-900 uppercase">{rule.column_name}</div>
+                                                    {rule.basica && (
+                                                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black rounded-full uppercase border border-emerald-200">Esencial</span>
+                                                    )}
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 font-medium mt-1">{rule.column_display_name}</div>
                                             </td>
                                             <td className="px-8 py-6">
-                                                <span className="px-2 py-1 bg-slate-100 rounded text-xs font-bold text-slate-500 uppercase">{rule.data_type}</span>
+                                                <div className="flex items-center text-[11px] font-bold text-slate-500 uppercase tracking-tight">
+                                                    <span className="text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{rule.fase_nombre}</span>
+                                                    <ChevronRight className="mx-1 h-3 w-3 text-slate-300" />
+                                                    <span className="bg-slate-100 px-2 py-0.5 rounded">{rule.evento_nombre}</span>
+                                                </div>
                                             </td>
-                                            <td className="px-8 py-6 font-mono text-sm text-slate-500">
-                                                {rule.min_value !== null ? rule.min_value : '∞'} - {rule.max_value !== null ? rule.max_value : '∞'}
-                                            </td>
-                                            <td className="px-8 py-6 text-right">
-                                                <div className="flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => openEdit(rule)} className="p-2 text-indigo-600 hover:bg-white rounded-lg border border-transparent hover:border-indigo-100"><Edit3 size={18} /></button>
-                                                    <button onClick={() => handleDelete(rule.id)} className="p-2 text-red-500 hover:bg-white rounded-lg border border-transparent hover:border-red-100"><Trash2 size={18} /></button>
+                                            <td className="px-8 py-6">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Rango Controlado</span>
+                                                    <span className="font-mono text-xs font-bold text-indigo-700">
+                                                        {rule.min_value !== null ? rule.min_value : '∞'} ↔ {rule.max_value !== null ? rule.max_value : '∞'}
+                                                    </span>
+                                                    <span className="text-[9px] text-slate-400 italic">Tipo: {rule.data_type}</span>
                                                 </div>
                                             </td>
                                         </tr>
@@ -355,6 +402,75 @@ export default function AdminSchemaPage() {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                ) : activeTab === "visual" ? (
+                    <div className="space-y-8 animate-in fade-in duration-500">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 uppercase">Cerebro de Gobernanza</h2>
+                                <p className="text-slate-500 font-medium">Mapa visual de la jerarquía clínica Kangaroo.</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {/* Agrupar por Fase */}
+                            {Array.from(new Set(rules.map(r => r.fase_nombre))).map((fase) => {
+                                const faseRules = rules.filter(r => r.fase_nombre === fase);
+                                const basicCount = faseRules.filter(r => r.basica).length;
+                                
+                                return (
+                                    <div key={fase} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/50 group hover:border-indigo-500 transition-all">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div className="p-4 bg-indigo-50 text-indigo-600 rounded-3xl group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                                <ShieldCheck size={32} />
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-4xl font-black text-slate-900">{faseRules.length}</span>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Variables</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2 line-clamp-1">{fase || "Sin Fase"}</h3>
+                                        <p className="text-slate-500 text-sm mb-6 font-medium">Protocolo asistencial validado.</p>
+                                        
+                                        {/* Density Map (Doto matrix) */}
+                                        <div className="grid grid-cols-10 gap-1 mb-8">
+                                            {Array.from({ length: Math.min(faseRules.length, 50) }).map((_, i) => (
+                                                <div 
+                                                    key={i} 
+                                                    className={`h-2 w-2 rounded-full transition-all ${i < basicCount ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'bg-indigo-100'}`}
+                                                    title={i < basicCount ? "Variable Primaria" : "Variable Seguimiento"}
+                                                />
+                                            ))}
+                                            {faseRules.length > 50 && (
+                                                <div className="h-2 w-2 rounded-full bg-slate-100 flex items-center justify-center text-[6px] font-bold text-slate-400">+</div>
+                                            )}
+                                        </div>
+
+                                        <div className="pt-6 border-t border-slate-50 flex justify-between items-center">
+                                            <div className="flex items-center text-xs font-bold text-emerald-600">
+                                                <span className="h-2 w-2 bg-emerald-500 rounded-full mr-2"></span>
+                                                {Math.round((basicCount / faseRules.length) * 100)}% Cobertura
+                                            </div>
+                                            <button 
+                                                onClick={() => {setActiveTab("fields"); /* Filtrar en el futuro */}}
+                                                className="text-xs font-black text-indigo-600 uppercase hover:underline"
+                                            >
+                                                Ver Detalles
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            
+                            {/* Empty state or loading */}
+                            {rules.length === 0 && !loading && (
+                                <div className="col-span-full py-20 text-center bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
+                                    <Database className="mx-auto text-slate-300 mb-4" size={48} />
+                                    <p className="text-slate-400 font-bold">Cargando Mapa de Gobernanza...</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 ) : (

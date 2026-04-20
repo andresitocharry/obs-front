@@ -38,11 +38,14 @@ export default function ValidationTool() {
   };
 
   const validateAndSetFile = (selectedFile: File) => {
-    if (selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx')) {
+    const validExtensions = ['.csv', '.xlsx', '.xlsm'];
+    const hasValidExt = validExtensions.some(ext => selectedFile.name.toLowerCase().endsWith(ext));
+    
+    if (hasValidExt) {
       setFile(selectedFile);
       setJobStatus(null);
     } else {
-      alert("Por favor sube solo archivos CSV o Excel (.xlsx)");
+      alert("Por favor sube solo archivos CSV o Excel (.xlsx, .xlsm)");
     }
   };
 
@@ -58,48 +61,56 @@ export default function ValidationTool() {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/v1/upload/`, {
+      
+      // 1. Ingestión (Upload)
+      const uploadResponse = await fetch(`${API_URL}/api/v1/upload/ingestion/upload`, {
         method: "POST",
-        headers: token ? {
-          "Authorization": `Bearer ${token}`
-        } : {},
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
         body: formData,
       });
 
-      if (!response.ok) throw new Error("Upload failed");
+      if (!uploadResponse.ok) throw new Error("Fallo en la subida del archivo");
+      const { upload_id } = await uploadResponse.json();
 
-      const data = await response.json();
-      pollStatus(data.job_id);
+      // 2. Ejecutar Validación (Background)
+      setJobStatus({ status: "validating" });
+      const runResponse = await fetch(`${API_URL}/api/v1/upload/validation/run?upload_id=${upload_id}`, {
+        method: "POST",
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
+      });
 
-    } catch (error) {
+      if (!runResponse.ok) throw new Error("No se pudo iniciar la validación");
+      
+      pollStatus(upload_id);
+
+    } catch (error: any) {
       console.error(error);
-      setJobStatus({ status: "error", message: "Fallo de conexión con el servidor." });
+      setJobStatus({ status: "error", message: error.message || "Fallo de conexión." });
       setUploading(false);
     }
   };
 
-  const pollStatus = async (jobId: string) => {
+  const pollStatus = async (uploadId: string) => {
     const interval = setInterval(async () => {
       try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/v1/upload/${jobId}/status`, {
-        headers: token ? {
-          "Authorization": `Bearer ${token}`
-        } : {}
-      });
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/api/v1/upload/validation/reports/${uploadId}`, {
+          headers: token ? { "Authorization": `Bearer ${token}` } : {}
+        });
+        
         const data = await response.json();
-
         setJobStatus(data);
 
-        if (data.status === "completed" || data.status === "failed") {
+        // Los estados finales son 'valid' (sin errores) o 'invalid' (con errores)
+        if (data.status === "valid" || data.status === "invalid" || data.status === "error") {
           clearInterval(interval);
           setUploading(false);
         }
       } catch (error) {
         clearInterval(interval);
         setUploading(false);
-        setJobStatus({ status: "error", message: "No se pudo consultar el estado." });
+        setJobStatus({ status: "error", message: "Error consultando el reporte." });
       }
     }, 2000);
   };
@@ -135,7 +146,7 @@ export default function ValidationTool() {
             </div>
             <div>
               <p className="text-xl font-semibold text-slate-800">Arrástra tu archivo aquí</p>
-              <p className="text-sm text-slate-500 mt-1">Soporta Excel (.xlsx) o archivos CSV</p>
+              <p className="text-sm text-slate-500 mt-1">Soporta Excel (.xlsx, .xlsm) o archivos CSV</p>
             </div>
           </div>
         </div>
@@ -152,7 +163,7 @@ export default function ValidationTool() {
               </div>
             </div>
 
-            {!uploading && (jobStatus?.status !== 'completed') && (
+            {!uploading && (jobStatus?.status !== 'valid' && jobStatus?.status !== 'invalid') && (
               <button onClick={startUpload} className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
                 Validar Ahora
               </button>
@@ -172,7 +183,7 @@ export default function ValidationTool() {
                 <p className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">Estado</p>
                 <p className="font-bold capitalize text-indigo-600">{jobStatus.status}</p>
               </div>
-              {jobStatus.status === 'completed' && (
+              {(jobStatus.status === 'valid' || jobStatus.status === 'invalid') && (
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                   <p className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">Inconsistencias</p>
                   <p className={`font-bold ${jobStatus.total_errors > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -182,7 +193,7 @@ export default function ValidationTool() {
               )}
             </div>
 
-            {jobStatus.status === 'completed' && jobStatus.total_errors > 0 && (
+            {(jobStatus.status === 'invalid') && jobStatus.total_errors > 0 && (
               <div className="bg-red-50 text-red-900 border border-red-100 rounded-2xl overflow-hidden shadow-sm">
                 <div className="px-6 py-3 border-b border-red-100 font-bold bg-red-100/50 flex justify-between items-center text-sm">
                   <span>Reporte de Errores</span>
@@ -191,7 +202,8 @@ export default function ValidationTool() {
                 <ul className="max-h-80 overflow-y-auto p-6 space-y-3 text-sm scrollbar-thin scrollbar-thumb-red-200">
                   {jobStatus.errors.map((err: any, idx: number) => (
                     <li key={idx} className="flex gap-4 p-3 bg-white/50 rounded-lg border border-red-50">
-                      <span className="font-bold text-red-600 whitespace-nowrap">Fila {err.row + 1}</span>
+                      <span className="font-bold text-red-600 whitespace-nowrap">Fila {err.row}</span>
+                      <span className="text-slate-600 font-bold">[{err.column}]</span>
                       <span className="text-red-800/80 leading-relaxed font-medium">{err.error}</span>
                     </li>
                   ))}
@@ -199,7 +211,7 @@ export default function ValidationTool() {
               </div>
             )}
 
-            {jobStatus.status === 'completed' && jobStatus.total_errors === 0 && (
+            {jobStatus.status === 'valid' && jobStatus.total_errors === 0 && (
               <div className="p-10 bg-emerald-50 text-emerald-800 rounded-2xl border border-emerald-100 flex flex-col items-center text-center space-y-4">
                 <div className="w-16 h-16 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-100">
                   <CheckCircle size={32} />
